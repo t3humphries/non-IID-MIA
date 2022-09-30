@@ -1,17 +1,12 @@
-from tensorflow_privacy.privacy.analysis.rdp_accountant import compute_rdp, get_privacy_spent
-from tensorflow_privacy.privacy.optimizers import dp_optimizer
-import tensorflow as tf
 import numpy as np
 import time
 import os
 import pickle
+import dp_accounting
+rdp_acc = dp_accounting.rdp.rdp_privacy_accountant
 
 
 NOISE_MULT_FILE = 'noise_multipliers.p'
-
-
-def test_get_eps_from_rdp(rdp, order, delta):
-    return (rdp - np.log(delta))/(order - 1)
 
 
 def update_noise_multipliers(train_size, batch_size, epochs, delta, epsilon_list):
@@ -58,22 +53,35 @@ def get_noise_multiplier(train_size, batch_size, epochs, delta):
 def compute_sigma_given_epsilon_bisection(target_epsilon, delta, tolerance, params, verbose=False):
     v_print = print if verbose else lambda *a, **k: None
 
+    # --------old unbounded DP verison-------------------------
+    # from tensorflow_privacy.privacy.analysis.rdp_accountant import compute_rdp, get_privacy_spent
+    # def compute_epsilon_given_sigma(sigma):
+    #     rdp = compute_rdp(q=batch_size / train_x_size0,
+    #                       noise_multiplier=sigma,
+    #                       steps=epochs * steps_per_epoch,
+    #                       orders=orders)
+
+    #     epsilon = get_privacy_spent(orders, rdp, target_delta=delta)[0]
+    #     return epsilon
+    #-----------------------------------------------------------
+    
+    # New bounded DP accounting
     def compute_epsilon_given_sigma(sigma):
-        rdp = compute_rdp(q=batch_size / train_x_size0,
-                          noise_multiplier=sigma,
-                          steps=epochs * steps_per_epoch,
-                          orders=orders)
-
-        epsilon = get_privacy_spent(orders, rdp, target_delta=delta)[0]
+        rdp = rdp_acc._compute_rdp_sample_wor_gaussian(q=batch_size / train_x_size0,
+                        noise_multiplier=sigma,
+                        orders=orders)
+        steps = epochs * steps_per_epoch
+        rdp = rdp * steps
+        epsilon = rdp_acc.compute_epsilon(orders, rdp, delta=delta)[0]
         return epsilon
-
+    
     time_init = time.time()
     train_x_size0 = params["train_x_size0"]
     batch_size = params["batch_size"]
     epochs = params["epochs"]
     steps_per_epoch = train_x_size0 // batch_size
 
-    orders = [1 + x / 100.0 for x in range(1, 1000)] + list(range(12, 1200))
+    orders = [1 + x / 100.0 for x in range(1, 1000, 5)] + list(range(10, 1200))
 
     sigma0 = 0.1
     sigma1 = 1000
@@ -96,6 +104,9 @@ def compute_sigma_given_epsilon_bisection(target_epsilon, delta, tolerance, para
 
     n_iters = 0
     while np.abs(epsilon_mid - target_epsilon) > tolerance and n_iters < 20:
+        #If epsilon goes to zero choose the smallest sigma and break
+        if epsilon_mid == 0  and sigma1 - sigma0 <= 100:
+            break
         n_iters += 1
         if epsilon_mid > target_epsilon:
             sigma0 = sigma_mid
@@ -107,30 +118,39 @@ def compute_sigma_given_epsilon_bisection(target_epsilon, delta, tolerance, para
                                                                                                                             np.abs(epsilon_mid - target_epsilon), time.time() - time_init))
     v_print("Done! For epsilon = {:.3f}, sigma = {:.3f} ({:.0f} secs)".format(target_epsilon, sigma_mid, time.time() - time_init))
     return sigma_mid
-
+    
+def get_params(key):
+    tags = key.split('_')
+    params = { 'train_x_size0' : int(tags[0]),
+              'batch_size' : int(tags[1]),
+              'epochs' : int(tags[2]),
+              'delta' : float(tags[3])
+    }
+    return params
 
 def main():
     # In Jayaraman, for train_x_size = 5000: noise_multiplier = {0.01:525, 0.05:150, 0.1:70, 0.5:13.8, 1:7, 5:1.669, 10:1.056, 50:0.551, 100:0.445, 500:0.275, 1000:0.219}
     # For 384: {0.05: 433.650390625, 0.1: 216.8751953125, 0.5: 43.85783081054688, 1: 22.215402984619143, 5: 4.885535955429076, 10: 2.7094687938690187, 50: 0.909111738204956, 100: 0.6344810009002686, 500: 0.30644984245300294, 1000: 0.22634921073913572}
     ## INPUT PARAMETERS
-    train_x_size0 = 5000
-    train_x_size0 = 123
-    batch_size = 200
-    epochs = 100
-    params = {"train_x_size0": train_x_size0, "batch_size": batch_size, "epochs": epochs}
-    tolerance = 0.0001
-    delta = 1e-5
-    epsilon_list = [0.01, 0.05, 0.1, 0.5, 1, 5, 10, 50, 100, 500, 1000]
-    epsilon_list = [1000]
+    # 
+    
+    #------------Regenerate current file using new accounting---------------
+    with open('unbounded_noise_multipliers.p', 'rb') as f:
+        old_noise_multipliers = pickle.load(f)
 
-    ## COMPUTE SIGMA FOR EACH EPSILON IN EPSILON_LIST
-    epsilon_to_sigma = {}
-    for target_epsilon in epsilon_list:
-        sigma = compute_sigma_given_epsilon_bisection(target_epsilon, delta, tolerance, params, verbose=True)
-        epsilon_to_sigma[target_epsilon] = sigma
+    new_noise_multipliers = {}
+    for config in old_noise_multipliers:
+        print(config)
+        params = get_params(config)
+        temp = {}
+        for eps in old_noise_multipliers[config]:
+            sigma = compute_sigma_given_epsilon_bisection(eps, params['delta'], 1e-4, params, verbose=True)
+            temp[eps] = sigma
+        new_noise_multipliers[config] = temp
 
-    print("Final result: {}".format(epsilon_to_sigma))
-    print(epsilon_to_sigma)
+    with open(NOISE_MULT_FILE, 'wb') as f:
+        pickle.dump(new_noise_multipliers, f)
+    #----------------------------------------------------------------------
 
 
 if __name__ == "__main__":

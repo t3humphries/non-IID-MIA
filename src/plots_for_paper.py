@@ -48,7 +48,10 @@ def load_results(dataset_name, split_name):
                 if eps not in results:
                     results[eps] = {}
                 with open(os.path.join(results_path, file.name), 'rb') as f:
-                    results[eps][run] = pkl.load(f)
+                    try:
+                        results[eps][run] = pkl.load(f)
+                    except EOFError:
+                        print('BAD FILE SKIPPING:',os.path.join(results_path, file.name))
                 count += 1
     print("  Loaded {:d} files for {:s} from {:s}".format(count, dataset_name, results_path))
     return results
@@ -133,7 +136,7 @@ def plot_advantage_in_axis(ax, result_list, color_list, label_list, attack_adv_n
     ax.set_xlabel('$\epsilon$')
     ax.set_xlim([0.8e-2, 2e4])
     ax.set_xticks([1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4])
-    ax.set_xticklabels(['$10^{-2}$', '$10^{-1}$', '$10^{0}$', '$10^{1}$', '$10^{2}$', '$10^{3}$', '$\infty$'])
+    ax.set_xticklabels(['$0$', '$10^{-1}$', '$10^{0}$', '$10^{1}$', '$10^{2}$', '$10^{3}$', '$\infty$'])
     return ylim_beforebounds
 
 
@@ -162,7 +165,7 @@ def plot_accuracy_in_axis(ax, result_list, color_list, label_list, plot_validati
     ax.set_xlabel('$\epsilon$')
     ax.set_title('Classification Accuracy')
     ax.set_xticks([1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4])
-    ax.set_xticklabels(['$10^{-2}$', '$10^{-1}$', '$10^{0}$', '$10^{1}$', '$10^{2}$', '$10^{3}$', '$\infty$'])
+    ax.set_xticklabels(['$0$', '$10^{-1}$', '$10^{0}$', '$10^{1}$', '$10^{2}$', '$10^{3}$', '$\infty$'])
     return ylim_beforebounds
 
 
