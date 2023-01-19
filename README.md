@@ -1,4 +1,7 @@
 # Investigating Membership Inference Attacks under Data Dependencies
+
+Paper: https://arxiv.org/abs/2010.12112
+
 Original code by Bargav Jayaraman: https://github.com/bargavj/EvaluatingDPML
 
 Code modified by: Thomas Humphries, Simon Oya, Matthew Rafuse, and Lindsey Tulloch (ordered alphabetically).
