@@ -6,7 +6,7 @@ Code modified by: Thomas Humphries, Simon Oya, Matthew Rafuse, and Lindsey Tullo
 ## Obtaining the datasets
 All [UCI datasets](http://archive.ics.uci.edu/ml) can be directly downloaded from their corresponding URLs:
 - Heart: https://archive.ics.uci.edu/ml/datasets/Heart+Disease
-- Census: https://archive.ics.uci.edu/ml/datasets/Census-Income+(KDD)
+- Census: https://archive.ics.uci.edu/dataset/117/census+income+kdd
 - Adult: https://archive.ics.uci.edu/ml/datasets/adult
 - Student: https://archive.ics.uci.edu/ml/datasets/Student+Performance (we only take ```student-por.csv``` (Portuguese) because it has the most rows)
 
